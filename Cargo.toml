@@ -6,6 +6,8 @@ edition = "2018"
 description = "Calculate Mel Frequency Cepstral Coefficients from audio data"
 license = "MIT"
 categories = ["science"]
+repository = "https://github.com/bytesnake/mfcc"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
