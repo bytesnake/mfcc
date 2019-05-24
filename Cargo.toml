@@ -1,0 +1,14 @@
+[package]
+name = "mfcc"
+version = "0.0.1"
+authors = ["Lorenz Schmidt <bytesnake@mailbox.org>"]
+edition = "2018"
+description = "Calculate Mel Frequency Cepstral Coefficients from audio data"
+license = "MIT"
+categories = ["science"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#fftw = { version = "0.5", features = ["system"], default_features=false }
+rustfft = "3"
