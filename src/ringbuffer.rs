@@ -1,15 +1,15 @@
 use std::i16;
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 
 pub struct Ringbuffer {
     inner: Vec<i16>,
     pos: usize,
-    window: Vec<f32>
+    window: Vec<f64>
 }
 
 impl Ringbuffer {
     pub fn new(capacity: usize) -> Ringbuffer {
-        let window = (0..capacity).map(|x| 0.54 - 0.46 * (2.0*PI* (x as f32) / capacity as f32).cos()).collect();
+        let window = (0..capacity).map(|x| 0.54 - 0.46 * (2.0*PI* (x as f64) / capacity as f64).cos()).collect();
 
         Ringbuffer {
             inner: vec![0; capacity],
@@ -26,12 +26,12 @@ impl Ringbuffer {
         }
     }
 
-    pub fn apply_hamming(&self, out: &mut [f32]){
+    pub fn apply_hamming(&self, out: &mut [f64]){
         let mut i = 0;
         let mut j = self.pos;
 
         while j != self.inner.len() {
-            out[i] = self.window[i] * (self.inner[j] as f32 / i16::MAX as f32);
+            out[i] = self.window[i] * (self.inner[j] as f64 / i16::MAX as f64);
 
             i += 1;
             j += 1;
@@ -40,7 +40,7 @@ impl Ringbuffer {
         j = 0;
 
         while j != self.pos {
-            out[i] = self.window[i] * (self.inner[j] as f32 / i16::MAX as f32);
+            out[i] = self.window[i] * (self.inner[j] as f64 / i16::MAX as f64);
 
             i += 1;
             j += 1;

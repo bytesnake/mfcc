@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rustfft::{FFT, FFTplanner};
 use rustfft::num_complex::{Complex, Complex64};
 
-struct InverseCosineTransform {
+pub struct InverseCosineTransform {
     ifft: Arc<dyn FFT<f64>>,
     buf: Vec<Complex64>,
     buf2: Vec<Complex64>
@@ -24,7 +24,7 @@ impl InverseCosineTransform {
         let norm = 2.0 * length as f64;
 
         for i in 0..length {
-            let theta = (i as f64 / norm * f64::consts::PI);
+            let theta = i as f64 / norm * f64::consts::PI;
 
             self.buf[i] = Complex::from_polar(&(input[i] * norm.sqrt()), &theta);
         }
@@ -40,7 +40,7 @@ impl InverseCosineTransform {
     }
 }
 
-struct ForwardRealFourier {
+pub struct ForwardRealFourier {
     fft: Arc<dyn FFT<f64>>,
     buf: Vec<Complex64>,
     buf2: Vec<Complex64>

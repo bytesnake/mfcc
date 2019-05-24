@@ -1,4 +1,6 @@
 mod freqs;
+pub mod mfcc;
+mod ringbuffer;
 
 #[cfg(test)]
 mod tests {
