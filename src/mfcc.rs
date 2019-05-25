@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
+use std::intrinsics::breakpoint;
 
-use rustfft::num_complex::Complex64;
+use rustfft::num_complex::{Complex, Complex64};
 
 use crate::freqs::{InverseCosineTransform, ForwardRealFourier};
 use crate::ringbuffer::Ringbuffer;
@@ -28,7 +29,8 @@ pub struct Transform {
 
 impl Transform {
     pub fn new(sample_rate: usize, buffer_size: usize) -> Transform {
-        let size = (2 * buffer_size).next_power_of_two();
+        //let size = (2 * buffer_size).next_power_of_two();
+        let size = 2 * buffer_size;
         let nfilters = 40;
         let maxfilter = 16;
         let normalization_length = 5;
@@ -38,8 +40,8 @@ impl Transform {
             rfft: ForwardRealFourier::new(size),
             rb: Ringbuffer::new(2 * buffer_size),
 
-            windowed_samples: AlignedVec::new(),
-            samples_freq_domain: AlignedVec::new(),
+            windowed_samples: vec![0.0; size],
+            samples_freq_domain: vec![Complex::i(); size / 2 + 1],
             mean_coeffs: vec![0.0; maxfilter*3],
             prev_coeffs: VecDeque::new(),
 
@@ -54,6 +56,8 @@ impl Transform {
     }
     
     pub fn transform(&mut self, input: &[i16], output: &mut [f64]) {
+        //unsafe { breakpoint(); }
+
         self.rb.append_back(&input);
         self.rb.apply_hamming(&mut self.windowed_samples);
 

@@ -14,3 +14,8 @@ repository = "https://github.com/bytesnake/mfcc"
 [dependencies]
 #fftw = { version = "0.5", features = ["system"], default_features=false }
 rustfft = "3"
+
+# The development profile, used for `cargo build`
+[profile.dev]
+opt-level = 0  # Controls the --opt-level the compiler builds with
+debug = true   # Controls whether the compiler passes `-g`

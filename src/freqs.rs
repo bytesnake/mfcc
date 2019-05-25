@@ -52,7 +52,7 @@ impl ForwardRealFourier {
         ForwardRealFourier {
             fft: planner.plan_fft(size/2),
             buf: vec![Complex::i(); size/2],
-            buf2: vec![Complex::i(); size/2]
+            buf2: vec![Complex::i(); size/2+1]
         }
     }
 
@@ -63,9 +63,9 @@ impl ForwardRealFourier {
             self.buf[i] = Complex::new(input[i*2], input[i*2 + 1]);
         }
 
-        self.fft.process(&mut self.buf, &mut self.buf2);
+        self.fft.process(&mut self.buf, &mut self.buf2[0..length]);
 
-        let first = self.buf2[0];
+        let first = self.buf2[0].clone();
         self.buf2[length] = self.buf2[0];
 
         for i in 0..length {
@@ -74,10 +74,11 @@ impl ForwardRealFourier {
             let part1 = self.buf2[i] + self.buf2[length - i].conj();
             let part2 = self.buf2[i] - self.buf2[length - i].conj();
             
-            output[i] = 0.5 * (part1 + part2 * Complex64::from_polar(&1.0, &phase));
+            output[length - i] = 0.5 * (part1 - part2 * Complex64::from_polar(&1.0, &phase));
         }
 
-        output[length+1] = Complex64::new(first.re - first.im, 0.0);
+        //output[0] = Complex64::new(f, 0.0);
+        output[0] = Complex64::new(output[length].re - output[length].im, 0.0);
     }
 }
 

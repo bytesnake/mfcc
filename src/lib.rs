@@ -1,3 +1,5 @@
+#![feature(core_intrinsics)]
+
 mod freqs;
 pub mod mfcc;
 mod ringbuffer;
