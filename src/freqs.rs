@@ -1,17 +1,26 @@
 use std::f64;
 use std::sync::Arc;
+use num_complex::Complex64;
+#[cfg(feature = "fftrust")]
 use rustfft::{FFT, FFTplanner};
-use rustfft::num_complex::{Complex, Complex64};
+#[cfg(feature = "fftrust")]
+use rustfft::num_complex::Complex;
+#[cfg(feature = "fftextern")]
+use fftw::plan::*;
+#[cfg(feature = "fftextern")]
+use fftw::types::*;
 
+#[cfg(feature = "fftrust")]
 pub struct InverseCosineTransform {
     ifft: Arc<dyn FFT<f64>>,
     buf: Vec<Complex64>,
     buf2: Vec<Complex64>
 }
 
+#[cfg(feature = "fftrust")]
 impl InverseCosineTransform {
     pub fn new(size: usize) -> InverseCosineTransform {
-        let mut planner = FFTplanner::new(false);
+        let mut planner = FFTplanner::new(true);
         InverseCosineTransform {
             ifft: planner.plan_fft(size),
             buf: vec![Complex::i(); size],
@@ -25,27 +34,32 @@ impl InverseCosineTransform {
 
         for i in 0..length {
             let theta = i as f64 / norm * f64::consts::PI;
+            //let input = input[i] * 2.0 / length as f64;
+            let input = input[i];
 
-            self.buf[i] = Complex::from_polar(&(input[i] * norm.sqrt()), &theta);
+            self.buf[i] = Complex::from_polar(&(input * norm.sqrt()), &theta);
         }
 
         self.buf[0] = self.buf[0].unscale(2.0_f64.sqrt());
 
+        //dbg!(&self.buf);
         self.ifft.process(&mut self.buf, &mut self.buf2);
 
-        for i in 0..length {
-            output[i*2] = self.buf2[i].re;
-            output[i*2+1] = self.buf2[length - i - 1].re;
+        for i in 0..length/2 {
+            output[i*2] = self.buf2[i].re; // / (length as f64);
+            output[i*2+1] = self.buf2[length - i - 1].re; //  / (length as f64);
         }
     }
 }
 
+#[cfg(feature = "fftrust")]
 pub struct ForwardRealFourier {
     fft: Arc<dyn FFT<f64>>,
     buf: Vec<Complex64>,
     buf2: Vec<Complex64>
 }
 
+#[cfg(feature = "fftrust")]
 impl ForwardRealFourier {
     pub fn new(size: usize) -> ForwardRealFourier {
         let mut planner = FFTplanner::new(false);
@@ -65,7 +79,7 @@ impl ForwardRealFourier {
 
         self.fft.process(&mut self.buf, &mut self.buf2[0..length]);
 
-        let first = self.buf2[0].clone();
+        /*let first = self.buf2[0].clone();
         self.buf2[length] = self.buf2[0];
 
         for i in 0..length {
@@ -74,11 +88,63 @@ impl ForwardRealFourier {
             let part1 = self.buf2[i] + self.buf2[length - i].conj();
             let part2 = self.buf2[i] - self.buf2[length - i].conj();
             
-            output[length - i] = 0.5 * (part1 - part2 * Complex64::from_polar(&1.0, &phase));
+            output[i] = 0.5 * (part1 - part2 * Complex64::from_polar(&1.0, &phase));
         }
 
         //output[0] = Complex64::new(f, 0.0);
-        output[0] = Complex64::new(output[length].re - output[length].im, 0.0);
+        output[length] = Complex64::new(first.re - first.im, 0.0);*/
+        let first = self.buf2[0].clone();
+        self.buf2[length] = self.buf2[0];
+        for i in 0..length {
+            let cplx = Complex64::from_polar(&1.0, &(-f64::consts::PI / (length as f64) * (i as f64) + f64::consts::PI / 2.0));
+            output[i] = 0.5 * (self.buf2[i] + self.buf2[length - i].conj()) + 0.5 * cplx * (-self.buf2[i] + self.buf2[length - i].conj());
+        }
+        /*for i in 0..length/2 {
+            let cplx = Complex64::from_polar(&1.0, &(f64::consts::PI / (length as f64) * (length / 2 - i - 1) as f64 + f64::consts::PI / 2.0));
+            output[length/2 + i] = 0.25 * (self.buf2[i] + self.buf2[length - i].conj()) + 0.25 * cplx * (self.buf2[i] - self.buf2[length - i].conj());
+        }*/
+        output[length] = Complex64::new(first.re - first.im, 0.0);
     }
 }
+
+#[cfg(feature = "fftextern")]
+pub struct InverseCosineTransform {
+    dct_state: R2RPlan64
+}
+
+#[cfg(feature = "fftextern")]
+impl InverseCosineTransform {
+    pub fn new(size: usize) -> InverseCosineTransform {
+        InverseCosineTransform {
+            dct_state: R2RPlan::aligned(&[size], R2RKind::FFTW_REDFT01, Flag::Estimate).unwrap()
+        }
+    }
+
+    pub fn transform(&mut self, input: &mut [f64], output: &mut [f64]) {
+        self.dct_state.r2r(input, output).unwrap();
+    }
+}
+
+#[cfg(feature = "fftextern")]
+pub struct ForwardRealFourier {
+    fft_state: R2CPlan64
+}
+
+#[cfg(feature = "fftextern")]
+impl ForwardRealFourier {
+    pub fn new(size: usize) -> ForwardRealFourier {
+        ForwardRealFourier {
+            fft_state: R2CPlan::aligned(&[size], Flag::Estimate).unwrap(),
+        }
+    }
+
+    pub fn transform(&mut self, input: &mut [f64], output: &mut [Complex64]) {
+        self.fft_state.r2c(input, output).unwrap();
+
+        /*for x in output {
+            *x = *x / (2.0 * input.len() as f64);
+        }*/
+    }
+}
+
 

@@ -12,8 +12,23 @@ repository = "https://github.com/bytesnake/mfcc"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#fftw = { version = "0.5", features = ["system"], default_features=false }
-rustfft = "3"
+num-complex = "0.2"
+
+[dependencies.fftw]
+version = "0.6"
+optional = true
+features = ["system"]
+default_features = false
+
+[dependencies.rustfft]
+version = "3"
+optional = true
+
+[features]
+default = ["fftrust"]
+
+fftrust = ["rustfft"]
+fftextern = ["fftw/system"]
 
 # The development profile, used for `cargo build`
 [profile.dev]

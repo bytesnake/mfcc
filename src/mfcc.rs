@@ -1,11 +1,16 @@
 use std::collections::VecDeque;
-use std::intrinsics::breakpoint;
+//use std::intrinsics::breakpoint;
 
-use rustfft::num_complex::{Complex, Complex64};
+use num_complex::Complex64;
+#[cfg(feature = "fftrust")]
+use num_complex::Complex;
 
 use crate::freqs::{InverseCosineTransform, ForwardRealFourier};
 use crate::ringbuffer::Ringbuffer;
 
+#[cfg(feature = "fftextern")]
+use fftw::array::AlignedVec;
+#[cfg(feature = "fftrust")]
 type AlignedVec<T> = Vec<T>;
 
 pub struct Transform {
@@ -15,6 +20,7 @@ pub struct Transform {
     
     windowed_samples: AlignedVec<f64>,
     samples_freq_domain: AlignedVec<Complex64>,
+    filters: AlignedVec<f64>,
     mean_coeffs: Vec<f64>,
     prev_coeffs: VecDeque<Vec<f64>>,
 
@@ -34,14 +40,28 @@ impl Transform {
         let nfilters = 40;
         let maxfilter = 16;
         let normalization_length = 5;
+        #[cfg(feature = "fftrust")]
+        let windowed_samples = vec![0.0; size];
+        #[cfg(feature = "fftrust")]
+        let samples_freq_domain = vec![Complex::i(); size / 2 + 1];
+        #[cfg(feature = "fftrust")]
+        let filters = vec![0.0; nfilters];
 
+        #[cfg(feature = "fftextern")]
+        let windowed_samples = AlignedVec::new(size);
+        #[cfg(feature = "fftextern")]
+        let samples_freq_domain = AlignedVec::new(size / 2 + 1);
+        #[cfg(feature = "fftextern")]
+        let filters = AlignedVec::new(nfilters);
+        
         Transform {
             idct: InverseCosineTransform::new(nfilters),
             rfft: ForwardRealFourier::new(size),
             rb: Ringbuffer::new(2 * buffer_size),
 
-            windowed_samples: vec![0.0; size],
-            samples_freq_domain: vec![Complex::i(); size / 2 + 1],
+            windowed_samples,
+            samples_freq_domain,
+            filters,
             mean_coeffs: vec![0.0; maxfilter*3],
             prev_coeffs: VecDeque::new(),
 
@@ -61,15 +81,19 @@ impl Transform {
         self.rb.append_back(&input);
         self.rb.apply_hamming(&mut self.windowed_samples);
 
-        self.rfft.transform(&self.windowed_samples, &mut self.samples_freq_domain);
+        self.rfft.transform(&mut self.windowed_samples, &mut self.samples_freq_domain);
 
-        let mut filters = vec![0.0; self.nfilters];
+        //let mut filters = vec![0.0; self.nfilters];
+        for x in self.filters.iter_mut() {
+            *x = 0.0;
+        }
+
         let filter_length = (self.maxmel / self.nfilters as f64) * 2.0;
 
         for (idx, val) in self.samples_freq_domain.iter().skip(1).enumerate() {
             let mel = 2595.0 * (1.0 + (self.sample_rate as f64 / 2.0 * idx as f64 / (self.samples_freq_domain.len() as f64)) / 700.0).log10();
             let mut idx = ((mel / self.maxmel) * self.nfilters as f64).floor() as usize;
-            let val = (val.re).powf(2.0) + (val.im).powf(2.0);
+            let val = (val.re / self.windowed_samples.len() as f64).powf(2.0) + (val.im / self.windowed_samples.len() as f64).powf(2.0);
 
             if idx == self.nfilters {
                 idx -= 1; 
@@ -85,7 +109,7 @@ impl Transform {
                 //if mel_diff < 0.5 {
                 //    filters[idx-1] += mel_diff * val;
                 //} else {
-                    filters[idx-1] += (1.0 - mel_diff) * val;
+                    self.filters[idx-1] += (1.0 - mel_diff) * val;
                 //}     
             }       
 
@@ -95,21 +119,26 @@ impl Transform {
             let mel_diff = mel_diff / filter_length;
 
             //if mel_diff < 0.5 {
-                filters[idx] += mel_diff * val;
+                self.filters[idx] += mel_diff * val;
             //} else {
             //    filters[idx] = (1.0 - mel_diff) * val;
             //} 
         } 
 
-        for filter in &mut filters {
+        for filter in self.filters.iter_mut() {
             if *filter < 1e-20 {
                 *filter = -46.05;
             } else {
                 *filter = (*filter).ln();
             }
         }
+        //self.filters[0] = 5.0;
 
-        self.idct.transform(&filters, output);
+        //dbg!(&self.filters.as_slice());
+
+        self.idct.transform(&mut self.filters, output);
+
+        dbg!(&output[0..16]);
 
         if let Some(back) = self.prev_coeffs.back() {
             for i in 0..self.maxfilter {
