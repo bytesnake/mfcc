@@ -1,6 +1,6 @@
 [package]
 name = "mfcc"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Lorenz Schmidt <bytesnake@mailbox.org>"]
 edition = "2018"
 description = "Calculate Mel Frequency Cepstral Coefficients from audio data"

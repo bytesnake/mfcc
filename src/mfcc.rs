@@ -83,7 +83,6 @@ impl Transform {
 
         self.rfft.transform(&mut self.windowed_samples, &mut self.samples_freq_domain);
 
-        //let mut filters = vec![0.0; self.nfilters];
         for x in self.filters.iter_mut() {
             *x = 0.0;
         }
@@ -91,7 +90,7 @@ impl Transform {
         let filter_length = (self.maxmel / self.nfilters as f64) * 2.0;
 
         for (idx, val) in self.samples_freq_domain.iter().skip(1).enumerate() {
-            let mel = 2595.0 * (1.0 + (self.sample_rate as f64 / 2.0 * idx as f64 / (self.samples_freq_domain.len() as f64)) / 700.0).log10();
+            let mel = 2595.0 * (1.0 + (self.sample_rate as f64 / 2.0 * (1.0 + idx as f64) / (self.samples_freq_domain.len() as f64)) / 700.0).log10();
             let mut idx = ((mel / self.maxmel) * self.nfilters as f64).floor() as usize;
             let val = (val.re / self.windowed_samples.len() as f64).powf(2.0) + (val.im / self.windowed_samples.len() as f64).powf(2.0);
 
@@ -132,13 +131,12 @@ impl Transform {
                 *filter = (*filter).ln();
             }
         }
-        //self.filters[0] = 5.0;
-
-        //dbg!(&self.filters.as_slice());
 
         self.idct.transform(&mut self.filters, output);
 
-        dbg!(&output[0..16]);
+        for i in self.maxfilter..output.len() {
+            output[i] = 0.0;
+        }
 
         if let Some(back) = self.prev_coeffs.back() {
             for i in 0..self.maxfilter {
@@ -147,13 +145,23 @@ impl Transform {
             }
         }
 
-        if let Some(front) = self.prev_coeffs.pop_front() {
+        if self.prev_coeffs.len() < self.normalization_length {
             for i in 0..self.maxfilter*3 {
-                self.mean_coeffs[i] += (output[i] - front[i]) / self.normalization_length as f64;
+                self.mean_coeffs[i] += output[i] / self.normalization_length as f64;
+            }
+        } else {
+            if let Some(front) = self.prev_coeffs.pop_front() {
+                for i in 0..self.maxfilter*3 {
+                    self.mean_coeffs[i] += (output[i] - front[i]) / self.normalization_length as f64;
+                }
             }
         }
 
         self.prev_coeffs.push_back(output.to_vec());
+
+        if self.prev_coeffs.len() < self.normalization_length {
+            return;
+        }
 
         let mut max_energy = 0.0;
         for i in &self.prev_coeffs {

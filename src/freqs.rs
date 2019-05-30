@@ -34,10 +34,8 @@ impl InverseCosineTransform {
 
         for i in 0..length {
             let theta = i as f64 / norm * f64::consts::PI;
-            //let input = input[i] * 2.0 / length as f64;
-            let input = input[i];
 
-            self.buf[i] = Complex::from_polar(&(input * norm.sqrt()), &theta);
+            self.buf[i] = Complex::from_polar(&(input[i] * norm.sqrt()), &theta);
         }
 
         self.buf[0] = self.buf[0].unscale(2.0_f64.sqrt());
@@ -46,8 +44,8 @@ impl InverseCosineTransform {
         self.ifft.process(&mut self.buf, &mut self.buf2);
 
         for i in 0..length/2 {
-            output[i*2] = self.buf2[i].re; // / (length as f64);
-            output[i*2+1] = self.buf2[length - i - 1].re; //  / (length as f64);
+            output[i*2] = self.buf2[i].re / (length as f64);
+            output[i*2+1] = self.buf2[length - i - 1].re  / (length as f64);
         }
     }
 }
@@ -79,30 +77,13 @@ impl ForwardRealFourier {
 
         self.fft.process(&mut self.buf, &mut self.buf2[0..length]);
 
-        /*let first = self.buf2[0].clone();
-        self.buf2[length] = self.buf2[0];
-
-        for i in 0..length {
-            let phase = -2.0 * f64::consts::PI / (length as f64) * (i as f64) + f64::consts::PI / 2.0;
-
-            let part1 = self.buf2[i] + self.buf2[length - i].conj();
-            let part2 = self.buf2[i] - self.buf2[length - i].conj();
-            
-            output[i] = 0.5 * (part1 - part2 * Complex64::from_polar(&1.0, &phase));
-        }
-
-        //output[0] = Complex64::new(f, 0.0);
-        output[length] = Complex64::new(first.re - first.im, 0.0);*/
         let first = self.buf2[0].clone();
         self.buf2[length] = self.buf2[0];
         for i in 0..length {
             let cplx = Complex64::from_polar(&1.0, &(-f64::consts::PI / (length as f64) * (i as f64) + f64::consts::PI / 2.0));
             output[i] = 0.5 * (self.buf2[i] + self.buf2[length - i].conj()) + 0.5 * cplx * (-self.buf2[i] + self.buf2[length - i].conj());
         }
-        /*for i in 0..length/2 {
-            let cplx = Complex64::from_polar(&1.0, &(f64::consts::PI / (length as f64) * (length / 2 - i - 1) as f64 + f64::consts::PI / 2.0));
-            output[length/2 + i] = 0.25 * (self.buf2[i] + self.buf2[length - i].conj()) + 0.25 * cplx * (self.buf2[i] - self.buf2[length - i].conj());
-        }*/
+
         output[length] = Complex64::new(first.re - first.im, 0.0);
     }
 }
@@ -121,7 +102,13 @@ impl InverseCosineTransform {
     }
 
     pub fn transform(&mut self, input: &mut [f64], output: &mut [f64]) {
+        input[0] *= 2.0f64.sqrt();
+
         self.dct_state.r2r(input, output).unwrap();
+
+        for x in output {
+            *x = *x / (2.0 * input.len() as f64).sqrt();
+        }
     }
 }
 
@@ -140,10 +127,6 @@ impl ForwardRealFourier {
 
     pub fn transform(&mut self, input: &mut [f64], output: &mut [Complex64]) {
         self.fft_state.r2c(input, output).unwrap();
-
-        /*for x in output {
-            *x = *x / (2.0 * input.len() as f64);
-        }*/
     }
 }
 
