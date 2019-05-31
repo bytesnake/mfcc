@@ -32,12 +32,16 @@ First you need to segment you audio data in chunks of around 10ms-20ms (max 1024
 ```rust
 use mfcc::Transform;
 
-let mut state = Transform::new(48000, 1024);
-let mut output = vec![0.0; 16*3];
+let mut state = Transform::new(48000, 1024)
+    .nfilters(20, 40)
+    .normlength(10);
+
+let mut output = vec![0.0; 20*3];
 
 state.transform(&input, &mut output);
 ```
 
+This creates MFCCs for an input of 1024 samples of 48000kHz sample rate. They are converted with 40 Mel Filter banks into the cepstral domain and finally the first 20 of them are written to the output. Then first and second order derivatives are computed and they are normalized over a range of 10 sets (max for energy/mean for the rest).
 
 ## License
 
