@@ -7,6 +7,8 @@ mod freqs;
 pub mod mfcc;
 mod ringbuffer;
 
+pub use mfcc::*;
+
 #[cfg(test)]
 mod tests {
     use test::Bencher;
