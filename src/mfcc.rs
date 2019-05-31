@@ -75,8 +75,36 @@ impl Transform {
         }
     }
     
+    pub fn nfilters(mut self, maxfilter: usize, nfilters: usize) -> Transform {
+        self.maxfilter = maxfilter;
+        self.nfilters = nfilters;
+        
+        #[cfg(feature = "fftrust")]
+        let filters = vec![0.0; nfilters];
+        #[cfg(feature = "fftextern")]
+        let filters = AlignedVec::new(nfilters);
+
+        self.filters = filters;
+
+        #[cfg(feature = "fftrust")]
+        let means = vec![0.0; maxfilter * 3];
+        #[cfg(feature = "fftextern")]
+        let means = AlignedVec::new(maxfilter * 3);
+
+        self.mean_coeffs = means;
+
+        self
+    }
+
+    pub fn normlength(mut self, length: usize) -> Transform {
+        self.normalization_length = length;
+
+        self
+    }
+
     pub fn transform(&mut self, input: &[i16], output: &mut [f64]) {
-        //unsafe { breakpoint(); }
+        assert_eq!(input.len(), self.buffer_size);
+        assert_eq!(output.len(), self.maxfilter * 3);
 
         self.rb.append_back(&input);
         self.rb.apply_hamming(&mut self.windowed_samples);
