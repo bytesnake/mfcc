@@ -12,16 +12,16 @@ repository = "https://github.com/bytesnake/mfcc"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num-complex = "0.2"
+num-complex = "0.4"
 
 [dependencies.fftw]
-version = "0.6"
+version = "0.8"
 optional = true
 features = ["system"]
 default_features = false
 
 [dependencies.rustfft]
-version = "3"
+version = "6"
 optional = true
 
 [features]
@@ -34,3 +34,10 @@ fftextern = ["fftw/system"]
 [profile.dev]
 opt-level = 0  # Controls the --opt-level the compiler builds with
 debug = true   # Controls whether the compiler passes `-g`
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name =  "mfcc_bench"
+harness = false

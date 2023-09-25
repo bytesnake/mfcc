@@ -18,11 +18,11 @@ features = ["fftextern"]
 ```
 
 A rough benchmark shows that their performance are comparable, for _FFTW_:
-```
+```text
 test tests::bench_mfcc ... bench:     123,959 ns/iter (+/- 22,979)
 ```
 For _rustfft_:
-```
+```text
 test tests::bench_mfcc ... bench:     162,603 ns/iter (+/- 35,914)
 ```
 
@@ -31,7 +31,7 @@ test tests::bench_mfcc ... bench:     162,603 ns/iter (+/- 35,914)
 First you need to segment you audio data in chunks of around 10ms-20ms (max 1024 samples for 48kHz). From these you can calculate the MFCC coefficients with
 ```rust
 use mfcc::Transform;
-
+let input = (0..1024).map(|x| ( 32000.0 * (x as f32 / 1024.0 * 20.0 * 3.1415).sin()) as i16).collect::<Vec<i16>>();
 let mut state = Transform::new(48000, 1024)
     .nfilters(20, 40)
     .normlength(10);

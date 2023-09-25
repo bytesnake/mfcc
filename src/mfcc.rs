@@ -1,15 +1,12 @@
-use std::collections::VecDeque;
-//use std::intrinsics::breakpoint;
-
-use num_complex::Complex64;
+use crate::freqs::{ForwardRealFourier, InverseCosineTransform};
+use crate::ringbuffer::Ringbuffer;
+#[cfg(any(feature = "fftw", feature = "fftextern"))]
+use fftw::array::AlignedVec;
 #[cfg(feature = "fftrust")]
 use num_complex::Complex;
+use num_complex::Complex64;
+use std::collections::VecDeque;
 
-use crate::freqs::{InverseCosineTransform, ForwardRealFourier};
-use crate::ringbuffer::Ringbuffer;
-
-#[cfg(feature = "fftextern")]
-use fftw::array::AlignedVec;
 #[cfg(feature = "fftrust")]
 type AlignedVec<T> = Vec<T>;
 
@@ -17,7 +14,7 @@ pub struct Transform {
     idct: InverseCosineTransform,
     rfft: ForwardRealFourier,
     rb: Ringbuffer,
-    
+
     windowed_samples: AlignedVec<f64>,
     samples_freq_domain: AlignedVec<Complex64>,
     filters: AlignedVec<f64>,
@@ -47,13 +44,13 @@ impl Transform {
         #[cfg(feature = "fftrust")]
         let filters = vec![0.0; nfilters];
 
-        #[cfg(feature = "fftextern")]
+        #[cfg(any(feature = "fftw", feature = "fftextern"))]
         let windowed_samples = AlignedVec::new(size);
-        #[cfg(feature = "fftextern")]
+        #[cfg(any(feature = "fftw", feature = "fftextern"))]
         let samples_freq_domain = AlignedVec::new(size / 2 + 1);
-        #[cfg(feature = "fftextern")]
+        #[cfg(any(feature = "fftw", feature = "fftextern"))]
         let filters = AlignedVec::new(nfilters);
-        
+
         Transform {
             idct: InverseCosineTransform::new(nfilters),
             rfft: ForwardRealFourier::new(size),
@@ -62,7 +59,7 @@ impl Transform {
             windowed_samples,
             samples_freq_domain,
             filters,
-            mean_coeffs: vec![0.0; maxfilter*3],
+            mean_coeffs: vec![0.0; maxfilter * 3],
             prev_coeffs: VecDeque::new(),
 
             maxmel: 2595.0 * (1.0 + sample_rate as f64 / 2.0 / 700.0).log10(),
@@ -71,27 +68,22 @@ impl Transform {
             maxfilter,
             nfilters,
             buffer_size,
-            normalization_length
+            normalization_length,
         }
     }
-    
+
     pub fn nfilters(mut self, maxfilter: usize, nfilters: usize) -> Transform {
         self.maxfilter = maxfilter;
         self.nfilters = nfilters;
-        
+
         #[cfg(feature = "fftrust")]
         let filters = vec![0.0; nfilters];
-        #[cfg(feature = "fftextern")]
+        #[cfg(any(feature = "fftw", feature = "fftextern"))]
         let filters = AlignedVec::new(nfilters);
 
         self.filters = filters;
 
-        #[cfg(feature = "fftrust")]
-        let means = vec![0.0; maxfilter * 3];
-        #[cfg(feature = "fftextern")]
-        let means = AlignedVec::new(maxfilter * 3);
-
-        self.mean_coeffs = means;
+        self.mean_coeffs = vec![0.0; maxfilter * 3];
 
         self
     }
@@ -109,7 +101,8 @@ impl Transform {
         self.rb.append_back(&input);
         self.rb.apply_hamming(&mut self.windowed_samples);
 
-        self.rfft.transform(&mut self.windowed_samples, &mut self.samples_freq_domain);
+        self.rfft
+            .transform(&mut self.windowed_samples, &mut self.samples_freq_domain);
 
         for x in self.filters.iter_mut() {
             *x = 0.0;
@@ -118,13 +111,19 @@ impl Transform {
         let filter_length = (self.maxmel / self.nfilters as f64) * 2.0;
 
         for (idx, val) in self.samples_freq_domain.iter().skip(1).enumerate() {
-            let mel = 2595.0 * (1.0 + (self.sample_rate as f64 / 2.0 * (1.0 + idx as f64) / (self.samples_freq_domain.len() as f64)) / 700.0).log10();
+            let mel = 2595.0
+                * (1.0
+                    + (self.sample_rate as f64 / 2.0 * (1.0 + idx as f64)
+                        / (self.samples_freq_domain.len() as f64))
+                        / 700.0)
+                    .log10();
             let mut idx = ((mel / self.maxmel) * self.nfilters as f64).floor() as usize;
-            let val = (val.re / self.windowed_samples.len() as f64).powf(2.0) + (val.im / self.windowed_samples.len() as f64).powf(2.0);
+            let val = (val.re / self.windowed_samples.len() as f64).powf(2.0)
+                + (val.im / self.windowed_samples.len() as f64).powf(2.0);
 
             if idx == self.nfilters {
-                idx -= 1; 
-            }       
+                idx -= 1;
+            }
 
             // push to previous filterbank (ignore special case in first bank)
             if idx > 0 {
@@ -136,9 +135,9 @@ impl Transform {
                 //if mel_diff < 0.5 {
                 //    filters[idx-1] += mel_diff * val;
                 //} else {
-                    self.filters[idx-1] += (1.0 - mel_diff) * val;
-                //}     
-            }       
+                self.filters[idx - 1] += (1.0 - mel_diff) * val;
+                //}
+            }
 
             // calculate position from beginning of the filter
             let mel_diff = mel - idx as f64 * filter_length / 2.0;
@@ -146,11 +145,11 @@ impl Transform {
             let mel_diff = mel_diff / filter_length;
 
             //if mel_diff < 0.5 {
-                self.filters[idx] += mel_diff * val;
+            self.filters[idx] += mel_diff * val;
             //} else {
             //    filters[idx] = (1.0 - mel_diff) * val;
-            //} 
-        } 
+            //}
+        }
 
         for filter in self.filters.iter_mut() {
             if *filter < 1e-20 {
@@ -169,18 +168,20 @@ impl Transform {
         if let Some(back) = self.prev_coeffs.back() {
             for i in 0..self.maxfilter {
                 output[self.maxfilter + i] = output[i] - back[i];
-                output[self.maxfilter*2 + i] = output[self.maxfilter + i] - back[self.maxfilter + i];
+                output[self.maxfilter * 2 + i] =
+                    output[self.maxfilter + i] - back[self.maxfilter + i];
             }
         }
 
         if self.prev_coeffs.len() < self.normalization_length {
-            for i in 0..self.maxfilter*3 {
+            for i in 0..self.maxfilter * 3 {
                 self.mean_coeffs[i] += output[i] / self.normalization_length as f64;
             }
         } else {
             if let Some(front) = self.prev_coeffs.pop_front() {
-                for i in 0..self.maxfilter*3 {
-                    self.mean_coeffs[i] += (output[i] - front[i]) / self.normalization_length as f64;
+                for i in 0..self.maxfilter * 3 {
+                    self.mean_coeffs[i] +=
+                        (output[i] - front[i]) / self.normalization_length as f64;
                 }
             }
         }
